@@ -6,6 +6,7 @@ window.TRUCK_CHECK_CONFIG = Object.freeze({
   // ==========================================================
   appsScriptUrl: "https://script.google.com/a/macros/spxexpress.com/s/AKfycbyJfGSiBiHZ7pL_lPE8ZzUgbsdhOZouVK9duwFTubpILmcFmA6XTl1wDlR93agFzll5/exec",
 
+  
   modelLocalUrl: "./models/cct_xs_v2_global.onnx?v=2",
 
   ortWasmPath:
