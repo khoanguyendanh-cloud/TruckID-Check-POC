@@ -4,7 +4,7 @@ window.TRUCK_CHECK_CONFIG = Object.freeze({
   // Example:
   // https://script.google.com/macros/s/AKfycbxxxxxxxxxxxxxxxx/exec
   // ==========================================================
-  appsScriptUrl: "PASTE_APPS_SCRIPT_WEBAPP_EXEC_URL_HERE",
+  appsScriptUrl: "https://script.google.com/a/macros/spxexpress.com/s/AKfycbyJfGSiBiHZ7pL_lPE8ZzUgbsdhOZouVK9duwFTubpILmcFmA6XTl1wDlR93agFzll5/exec",
 
   modelLocalUrl: "./models/cct_xs_v2_global.onnx?v=2",
 
