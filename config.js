@@ -1,14 +1,16 @@
 window.TRUCK_CHECK_CONFIG = Object.freeze({
-  // Official FastPlateOCR release asset.
-  // App tries local model first, then this official URL.
+  // ==========================================================
+  // PASTE APPS SCRIPT /exec URL HERE AFTER DEPLOY
+  // Example:
+  // https://script.google.com/macros/s/AKfycbxxxxxxxxxxxxxxxx/exec
+  // ==========================================================
+  appsScriptUrl: "PASTE_APPS_SCRIPT_WEBAPP_EXEC_URL_HERE",
+
   modelLocalUrl: "./models/cct_xs_v2_global.onnx?v=2",
-  modelRemoteUrl:
-    "https://github.com/ankandrew/fast-plate-ocr/releases/download/arg-plates/cct_xs_v2_global.onnx",
 
   ortWasmPath:
     "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/",
 
-  // cct_xs_v2_global_plate_config.yaml
   model: {
     inputName: "input",
     plateOutputName: "plate",
@@ -17,23 +19,34 @@ window.TRUCK_CHECK_CONFIG = Object.freeze({
     channels: 3,
     maxPlateSlots: 10,
     alphabet: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_",
-    padChar: "_",
   },
 
-  // Scan tuning.
-  scanIntervalMs: 420,
+  // Source H/F/J refresh.
+  sourceRefreshMs: 30000,
+
+  // Fast OCR.
+  scanIntervalMs: 400,
   stableRequired: 2,
   minFastConfidence: 0.53,
   oneShotFastConfidence: 0.90,
-  duplicateSuppressMs: 4500,
-  acceptedHoldMs: 950,
 
-  // General body-text fallback.
+  // Body BKS fallback.
   bodyFallbackAfterMisses: 5,
-  bodyCooldownMs: 1700,
-  bodyMinConfidence: 42,
+  bodyCooldownMs: 1600,
+  bodyMinConfidence: 0.42,
 
-  // ROI is always centered and exactly 2:1.
+  // UX.
+  duplicateSuppressMs: 4500,
+  resultHoldMs: 1200,
+
+  // Centered 2:1 scan ROI.
   roiWidthRatio: 0.86,
   roiMaxHeightRatio: 0.48,
+
+  // GSheet rule if BKS does not exist in H.
+  notFoundPriority: "Không ưu tiên",
+  notFoundBlacklist: "",
+
+  // JSONP timeout.
+  backendTimeoutMs: 7000,
 });
