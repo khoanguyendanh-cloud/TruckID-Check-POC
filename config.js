@@ -1,7 +1,7 @@
 window.TRUCK_CHECK_CONFIG = Object.freeze({
   // Official FastPlateOCR release asset.
   // App tries local model first, then this official URL.
-  modelLocalUrl: "./models/cct_xs_v2_global.onnx",
+  modelLocalUrl: "./models/cct_xs_v2_global.onnx?v=2",
   modelRemoteUrl:
     "https://github.com/ankandrew/fast-plate-ocr/releases/download/arg-plates/cct_xs_v2_global.onnx",
 
