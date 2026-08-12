@@ -57,6 +57,34 @@
       </div>
     </section>
 
+    <section class="manual-card">
+      <div class="manual-title">Nhập BKS thủ công</div>
+
+      <form id="manualForm" class="manual-form" autocomplete="off">
+        <input
+          id="manualInput"
+          class="manual-input"
+          type="text"
+          inputmode="text"
+          autocapitalize="characters"
+          autocomplete="off"
+          spellcheck="false"
+          enterkeyhint="go"
+          placeholder="VD: 50E-360.75"
+          maxlength="16"
+          aria-label="Nhập BKS thủ công"
+        />
+
+        <button id="manualBtn" class="manual-btn" type="submit">
+          Kiểm tra
+        </button>
+      </form>
+
+      <div class="manual-hint">
+        Chỉ dùng khi OCR không đọc được hoặc cần sửa nhanh BKS.
+      </div>
+    </section>
+
     <section class="tiny-status">
       <span id="sourceStatus">Source: —</span>
       <span>·</span>

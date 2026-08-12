@@ -20,6 +20,10 @@
     logStatus: $("logStatus"),
     ocrStatus: $("ocrStatus"),
 
+    manualForm: $("manualForm"),
+    manualInput: $("manualInput"),
+    manualBtn: $("manualBtn"),
+
     modelCanvas: $("modelCanvas"),
     bodyCanvas: $("bodyCanvas"),
   };
@@ -632,9 +636,12 @@
     };
   }
 
-  function acceptPlate(plate, engine, ms) {
+  function acceptPlate(plate, engine, ms, options = {}) {
     if (!state.sourceReady) return;
-    if (isDuplicate(plate)) return;
+
+    const force = Boolean(options.force);
+
+    if (!force && isDuplicate(plate)) return;
 
     state.lastAcceptedPlate = plate;
     state.lastAcceptedAt = Date.now();
@@ -653,7 +660,9 @@
     setResult(
       lookup.found ? "known" : "unknown",
       output,
-      `${engine} · ${Math.round(ms)}ms`,
+      engine === "MANUAL"
+        ? "Nhập thủ công"
+        : `${engine} · ${Math.round(ms)}ms`,
     );
 
     if (navigator.vibrate) {
@@ -850,6 +859,54 @@
       message || "Chạm để mở camera";
     els.cameraFallback.classList.remove("hidden");
   }
+
+  // ==========================================================
+  // MANUAL BKS FALLBACK
+  // ==========================================================
+
+  function submitManualPlate(rawValue) {
+    if (!state.sourceReady) {
+      setResult(
+        "error",
+        "SOURCE CHƯA SẴN SÀNG",
+        "Chưa thể kiểm tra BKS thủ công.",
+      );
+      return;
+    }
+
+    const plate = normalizePlate(rawValue);
+
+    if (!isValidPlate(plate)) {
+      setResult(
+        "error",
+        "BKS KHÔNG HỢP LỆ",
+        "Ví dụ hợp lệ: 50E36075 hoặc 50E-360.75",
+      );
+
+      return;
+    }
+
+    // Manual correction is intentional, so bypass short duplicate suppression.
+    acceptPlate(
+      plate,
+      "MANUAL",
+      0,
+      { force: true },
+    );
+
+    els.manualInput.value = "";
+    els.manualInput.blur();
+  }
+
+  els.manualForm.addEventListener(
+    "submit",
+    (event) => {
+      event.preventDefault();
+      submitManualPlate(
+        els.manualInput.value,
+      );
+    },
+  );
 
   // ==========================================================
   // BOOT
