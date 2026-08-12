@@ -1,0 +1,80 @@
+DEPLOY NHANH BẰNG GITHUB PAGES
+==============================
+
+LƯU Ý
+-----
+POC này không có credential / Google Sheet data.
+GitHub Pages là static hosting; OCR vẫn chạy trên phone.
+
+GitHub Pages site có thể public trên Internet tùy plan/settings.
+Không đưa dữ liệu nội bộ hoặc credential vào repo này.
+
+
+CÁCH LÀM
+--------
+1. Tạo repo mới trên GitHub.
+   Ví dụ:
+   truck-check-poc
+
+2. Upload toàn bộ nội dung trong folder này vào ROOT repo:
+   index.html
+   styles.css
+   config.js
+   app.js
+   .nojekyll
+   models/...
+
+3. RECOMMEND:
+   Download:
+   cct_xs_v2_global.onnx
+
+   rồi upload vào:
+   models/cct_xs_v2_global.onnx
+
+   Official source:
+   FastPlateOCR GitHub release
+   /arg-plates/cct_xs_v2_global.onnx
+
+4. GitHub:
+   Settings
+   -> Pages
+   -> Build and deployment
+   -> Source: Deploy from a branch
+   -> Branch: main
+   -> Folder: /(root)
+   -> Save
+
+5. Chờ Pages deploy xong.
+
+6. Mở URL HTTPS trên điện thoại.
+   Ví dụ:
+   https://USERNAME.github.io/truck-check-poc/
+
+7. Bấm:
+   Bật camera
+
+8. Browser hỏi Camera permission:
+   Allow
+
+
+TẠI SAO CẦN HTTPS?
+------------------
+Browser camera getUserMedia() yêu cầu secure context.
+GitHub Pages cung cấp HTTPS, nên phù hợp cho POC phone.
+
+
+NẾU MODEL LOAD ERROR
+--------------------
+Khả năng thường gặp:
+- GitHub release URL bị network công ty chặn
+- CORS/proxy
+
+Fix sạch:
+host model cùng site:
+models/cct_xs_v2_global.onnx
+
+
+NẾU BODY OCR WARM-UP CHẬM
+-------------------------
+Lần đầu Tesseract.js phải tải/cached English language assets.
+Sau khi browser cache xong, lần sau thường nhanh hơn.

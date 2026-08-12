@@ -1,0 +1,37 @@
+THIRD-PARTY COMPONENTS
+======================
+
+FastPlateOCR
+------------
+Project:
+ankandrew/fast-plate-ocr
+Purpose:
+specialized license-plate OCR model
+
+POC config used:
+cct-xs-v2-global
+128 x 64 RGB, uint8, NHWC
+10 slots
+alphabet:
+0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_
+
+
+ONNX Runtime Web
+----------------
+Project:
+microsoft/onnxruntime
+
+POC CDN:
+onnxruntime-web 1.22.0
+WASM execution provider
+
+
+Tesseract.js
+------------
+Project:
+naptha/tesseract.js
+
+POC CDN:
+Tesseract.js 7.0.0
+
+Used only as a general-text fallback for BKS printed on truck body.

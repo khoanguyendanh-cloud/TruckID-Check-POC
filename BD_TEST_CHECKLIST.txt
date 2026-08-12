@@ -1,0 +1,51 @@
+BD PILOT - TEST CHECKLIST
+=========================
+
+Test tối thiểu 20-30 lượt trước khi đánh giá.
+
+A. BIỂN SỐ VẬT LÝ
+------------------
+[ ] Sáng / đủ sáng
+[ ] Hơi nghiêng
+[ ] Xa hơn bình thường
+[ ] Xe đang bò chậm
+[ ] Biển bẩn nhẹ
+
+Ghi:
+- đúng/sai
+- Fast OCR last
+- P50/P95
+
+
+B. BKS IN TRÊN THÂN XE
+----------------------
+[ ] chữ lớn rõ
+[ ] chữ hơi xa
+[ ] nền sáng
+[ ] nền tối
+[ ] thân xe nghiêng
+
+Ghi:
+- FAST PLATE OCR đọc được hay BODY OCR fallback
+- latency BODY OCR
+
+
+C. THAO TÁC
+-----------
+[ ] Auto scan có lock nhầm xe cũ không
+[ ] 2 người scan song song bằng 2 phone
+[ ] 4+ phone mở cùng URL
+[ ] 10-15 phút liên tục có nóng/lag không
+
+
+PASS POC ĐỀ XUẤT
+----------------
+Không hard-code KPI cuối ngay.
+Trước tiên lấy data thật:
+- accuracy physical plate
+- accuracy body BKS
+- P50
+- P95
+- thao tác xe/phút/người
+
+Sau đó mới chốt threshold production.
