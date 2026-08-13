@@ -62,21 +62,13 @@
 
   const LOG_STORAGE_KEY = "truck_check_pending_logs_v2";
 
-function backendConfigured() {
-  try {
-    const u = new URL(
-      String(CFG.appsScriptUrl || "").trim()
-    );
-
+  function backendConfigured() {
     return (
-      u.protocol === "https:" &&
-      u.hostname === "script.google.com" &&
-      /\/s\/[^/]+\/exec$/.test(u.pathname)
+      CFG.appsScriptUrl &&
+      CFG.appsScriptUrl.startsWith("https://script.google.com/macros/s/") &&
+      CFG.appsScriptUrl.endsWith("/exec")
     );
-  } catch {
-    return false;
   }
-}
 
   function setSystem(kind, text) {
     els.systemPill.className = `pill pill-${kind}`;
@@ -681,15 +673,9 @@ function backendConfigured() {
     queueScanLog(plate, Date.now());
 
     setTimeout(() => {
+      // Resume scanning but KEEP the last result visible.
+      // The result is replaced only when the next BKS is accepted.
       state.paused = false;
-
-      if (state.sourceReady) {
-        setResult(
-          "idle",
-          "Sẵn sàng quét",
-          "Đưa BKS vào khung",
-        );
-      }
     }, CFG.resultHoldMs);
   }
 
