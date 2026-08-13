@@ -62,21 +62,21 @@
 
   const LOG_STORAGE_KEY = "truck_check_pending_logs_v2";
 
-function backendConfigured() {
-  try {
-    const u = new URL(
-      String(CFG.appsScriptUrl || "").trim()
-    );
+  function backendConfigured() {
+    try {
+      const u = new URL(
+        String(CFG.appsScriptUrl || "").trim()
+      );
 
-    return (
-      u.protocol === "https:" &&
-      u.hostname === "script.google.com" &&
-      /\/s\/[^/]+\/exec$/.test(u.pathname)
-    );
-  } catch {
-    return false;
+      return (
+        u.protocol === "https:" &&
+        u.hostname === "script.google.com" &&
+        /\/s\/[^/]+\/exec$/.test(u.pathname)
+      );
+    } catch {
+      return false;
+    }
   }
-}
 
   function setSystem(kind, text) {
     els.systemPill.className = `pill pill-${kind}`;
@@ -286,13 +286,15 @@ function backendConfigured() {
     updateLogStatus();
   }
 
-  function queueScanLog(plate, timestampMs) {
+  function queueScanLog(plate, timestampMs, priority) {
     state.logQueue.push({
       id:
         `${timestampMs}_${plate}_` +
         Math.random().toString(36).slice(2, 9),
       plate,
       timestampMs,
+      // Snapshot exactly what the operator saw at scan time.
+      priority: String(priority || ""),
     });
     savePendingLogs();
     void flushLogQueue();
@@ -311,11 +313,18 @@ function backendConfigured() {
       while (state.logQueue.length > 0) {
         const item = state.logQueue[0];
 
+        const pendingLookup = lookupPlate(item.plate);
+        const prioritySnapshot =
+          item.priority ||
+          pendingLookup.priority ||
+          CFG.notFoundPriority;
+
         const payload = await jsonp({
           action: "log",
           id: item.id,
           plate: item.plate,
           ts: item.timestampMs,
+          priority: prioritySnapshot,
         });
 
         if (!payload.ok) {
@@ -677,8 +686,13 @@ function backendConfigured() {
       navigator.vibrate([70, 35, 70]);
     }
 
-    // Background A/B logging.
-    queueScanLog(plate, Date.now());
+    // Background A/B/C snapshot logging.
+    // C is the exact Priority value displayed for this scan.
+    queueScanLog(
+      plate,
+      Date.now(),
+      lookup.priority,
+    );
 
     setTimeout(() => {
       // Resume scanning but KEEP the last result visible.
