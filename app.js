@@ -267,6 +267,47 @@
   // This removes the flaky action=auth preflight from page boot.
   // ==========================================================
 
+  // ==========================================================
+  // ACCESS CHECK V1.2
+  //
+  // 1) ping   = backend endpoint reachable
+  // 2) source = user has granted the Sheets scope and can read source
+  //
+  // If ping works but source cannot execute before OAuth,
+  // DO NOT try to obtain an authUrl through JSONP.
+  // Instead show a first-party Apps Script authorization page.
+  // ==========================================================
+
+  function getAuthorizePageUrl() {
+    const base =
+      String(CFG.appsScriptUrl || "").trim();
+
+    if (!base) {
+      return "";
+    }
+
+    return (
+      base +
+      (base.includes("?") ? "&" : "?") +
+      "action=authorize"
+    );
+  }
+
+  function showFirstTimeAuthGate(message = "") {
+    state.authReady = false;
+    state.authUrl = getAuthorizePageUrl();
+
+    showAuthGate(
+      state.authUrl,
+      message ||
+      (
+        "Tài khoản này cần cấp quyền Google Sheets lần đầu. " +
+        "Bấm “Cấp quyền sử dụng”, hoàn tất Google consent, " +
+        "sau đó quay lại Truck Check."
+      ),
+    );
+  }
+
   async function checkAccessViaSource() {
     if (!backendConfigured()) {
       state.authReady = false;
@@ -282,35 +323,66 @@
       (async () => {
         setSystem("loading", "Đang kiểm tra quyền");
 
-        const sourceOk =
-          await refreshSource({
-            onboarding: true,
-          });
+        // Step 1: prove the Apps Script endpoint is reachable.
+        try {
+          await jsonp(
+            { action: "ping" },
+            12000,
+          );
+        } catch (err) {
+          console.warn("Backend ping:", err);
 
-        if (sourceOk) {
-          state.authReady = true;
-          state.authUrl = "";
-          hideAuthGate();
-          return true;
-        }
+          showAuthGate(
+            "",
+            "Không kết nối được Apps Script backend. " +
+            "Kiểm tra mạng hoặc URL backend rồi bấm “Thử lại kết nối”.",
+          );
 
-        // refreshSource() shows Auth Gate itself
-        // when backend returns authRequired + authUrl.
-        if (
-          document.body.classList.contains(
-            "auth-required"
-          )
-        ) {
           return false;
         }
 
-        showAuthGate(
-          "",
-          "Chưa kết nối được Apps Script. " +
-          "Bấm “Thử lại kết nối”.",
-        );
+        // Step 2: the real permission check is whether source can load.
+        try {
+          const sourceOk =
+            await refreshSource({
+              onboarding: true,
+              suppressGenericAuthGate: true,
+            });
 
-        return false;
+          if (sourceOk) {
+            state.authReady = true;
+            state.authUrl = "";
+
+            hideAuthGate();
+            return true;
+          }
+
+          // If source explicitly handled authRequired, it may already
+          // have shown a gate. Otherwise use the first-party auth page.
+          if (
+            !document.body.classList.contains(
+              "auth-required"
+            )
+          ) {
+            showFirstTimeAuthGate();
+          }
+
+          return false;
+
+        } catch (err) {
+          console.warn("Source access:", err);
+
+          // Endpoint is reachable but source cannot execute.
+          // Before first OAuth grant this commonly cannot complete
+          // as a JSONP call from GitHub. Move auth into first-party
+          // Apps Script page instead.
+          showFirstTimeAuthGate(
+            "Backend đang hoạt động nhưng tài khoản này chưa truy cập được Source. " +
+            "Hãy cấp quyền Google Sheets lần đầu.",
+          );
+
+          return false;
+        }
       })()
       .finally(() => {
         state.authCheckPromise = null;
@@ -384,15 +456,13 @@
       console.warn("Source refresh:", err);
 
       if (
-        err?.payload?.authRequired &&
-        err?.payload?.authUrl
+        err?.payload?.authRequired
       ) {
         state.sourceReady = false;
         updateSourceStatus();
 
-        showAuthGate(
-          err.payload.authUrl,
-          "Quyền Google của tài khoản này cần được cấp lại.",
+        showFirstTimeAuthGate(
+          "Tài khoản này cần cấp hoặc cấp lại quyền Google Sheets.",
         );
 
         return false;
@@ -410,11 +480,12 @@
       updateSourceStatus();
 
       if (options.onboarding) {
-        showAuthGate(
-          "",
-          "Không gọi được backend để kiểm tra quyền. " +
-          "Bấm “Thử lại kết nối”.",
-        );
+        if (!options.suppressGenericAuthGate) {
+          showAuthGate(
+            "",
+            "Không gọi được Source. Bấm “Thử lại kết nối”.",
+          );
+        }
 
         return false;
       }
@@ -1233,9 +1304,9 @@
       els.authRetryBtn.disabled = true;
 
       els.authMessage.textContent =
-        "Google đang mở trang cấp quyền. " +
-        "Chọn đúng email Shopee Mobile và bấm Allow. " +
-        "Sau đó quay lại tab Truck Check.";
+        "Đang mở trang cấp quyền của Truck Check. " +
+        "Chọn đúng email Shopee Mobile, bấm Cấp quyền / Allow, " +
+        "sau đó quay lại tab Truck Check.";
 
       window.open(
         state.authUrl,
