@@ -12,6 +12,11 @@
     systemPill: $("systemPill"),
     systemText: $("systemText"),
 
+    authGate: $("authGate"),
+    authMessage: $("authMessage"),
+    authBtn: $("authBtn"),
+    authRetryBtn: $("authRetryBtn"),
+
     resultCard: $("resultCard"),
     resultMain: $("resultMain"),
     resultSub: $("resultSub"),
@@ -35,6 +40,13 @@
     sourceReady: false,
     sourceMap: new Map(),
     sourceUpdatedAt: 0,
+
+    authReady: false,
+    authUrl: "",
+    authCheckPromise: null,
+    operationalBootStarted: false,
+    backgroundTimersStarted: false,
+    lastAuthAutoCheckAt: 0,
 
     running: false,
     paused: false,
@@ -180,9 +192,13 @@
         if (payload && payload.ok) {
           resolve(payload);
         } else {
-          reject(
-            new Error(payload?.error || "Backend trả lỗi."),
-          );
+          const error =
+            new Error(
+              payload?.error || "Backend trả lỗi.",
+            );
+
+          error.payload = payload || null;
+          reject(error);
         }
       };
 
@@ -193,6 +209,134 @@
 
       document.head.appendChild(script);
     });
+  }
+
+  // ==========================================================
+  // FIRST-TIME GOOGLE AUTH
+  // Backend action=auth returns:
+  // authorized / authRequired / authUrl / email
+  // ==========================================================
+
+  function showAuthGate(authUrl = "", message = "") {
+    state.authReady = false;
+    state.authUrl = String(authUrl || "");
+
+    document.body.classList.add("auth-required");
+    els.authGate.classList.remove("hidden");
+
+    els.authMessage.textContent =
+      message ||
+      (
+        "Truck Check cần quyền Google Sheets để tải danh sách xe " +
+        "và lưu lượt quét. Chỉ cần cấp một lần cho tài khoản này."
+      );
+
+    els.authBtn.disabled = !state.authUrl;
+    els.authRetryBtn.disabled = false;
+
+    setSystem("error", "Cần cấp quyền");
+  }
+
+  function hideAuthGate() {
+    document.body.classList.remove("auth-required");
+    els.authGate.classList.add("hidden");
+
+    els.authBtn.disabled = false;
+    els.authRetryBtn.disabled = false;
+  }
+
+  async function checkAuthorization() {
+    if (!backendConfigured()) {
+      state.authReady = false;
+      setSystem("error", "Chưa nối GSheet");
+      return false;
+    }
+
+    if (state.authCheckPromise) {
+      return state.authCheckPromise;
+    }
+
+    state.authCheckPromise =
+      (async () => {
+        setSystem("loading", "Đang kiểm tra quyền");
+
+        try {
+          const payload =
+            await jsonp({
+              action: "auth",
+            });
+
+          if (payload.authorized) {
+            state.authReady = true;
+            state.authUrl = "";
+
+            hideAuthGate();
+
+            return true;
+          }
+
+          if (
+            payload.authRequired &&
+            payload.authUrl
+          ) {
+            showAuthGate(
+              payload.authUrl,
+              "Tài khoản này chưa cấp quyền cho Truck Check. " +
+              "Bấm “Cấp quyền sử dụng”, chọn đúng email Shopee Mobile " +
+              "và bấm Allow.",
+            );
+
+            return false;
+          }
+
+          throw new Error(
+            "Backend không trả trạng thái cấp quyền hợp lệ.",
+          );
+
+        } catch (err) {
+          console.warn("Auth check:", err);
+
+          const payload = err?.payload;
+
+          if (
+            payload?.authRequired &&
+            payload?.authUrl
+          ) {
+            showAuthGate(
+              payload.authUrl,
+              "Tài khoản này cần cấp quyền trước khi sử dụng Truck Check.",
+            );
+
+            return false;
+          }
+
+          showAuthGate(
+            "",
+            "Không kiểm tra được quyền sử dụng. " +
+            "Kiểm tra kết nối rồi bấm “Kiểm tra lại”.",
+          );
+
+          setSystem("error", "Lỗi kiểm tra quyền");
+          return false;
+
+        } finally {
+          state.authCheckPromise = null;
+        }
+      })();
+
+    return state.authCheckPromise;
+  }
+
+  async function continueAfterAuthorization() {
+    const authorized =
+      await checkAuthorization();
+
+    if (!authorized) {
+      return false;
+    }
+
+    await startOperationalBoot();
+    return true;
   }
 
   async function refreshSource() {
@@ -240,6 +384,21 @@
       return true;
     } catch (err) {
       console.warn("Source refresh:", err);
+
+      if (
+        err?.payload?.authRequired &&
+        err?.payload?.authUrl
+      ) {
+        state.sourceReady = false;
+        updateSourceStatus();
+
+        showAuthGate(
+          err.payload.authUrl,
+          "Quyền Google của tài khoản này cần được cấp lại.",
+        );
+
+        return false;
+      }
 
       // Keep previous cache if it already exists.
       if (state.sourceMap.size > 0) {
@@ -928,16 +1087,19 @@
   // BOOT
   // ==========================================================
 
-  async function boot() {
-    loadPendingLogs();
-
-    if (!backendConfigured()) {
-      setSystem("error", "Chưa nối GSheet");
-    } else {
-      setSystem("loading", "Đang đồng bộ");
+  async function startOperationalBoot() {
+    if (
+      !state.authReady ||
+      state.operationalBootStarted
+    ) {
+      return;
     }
 
-    // Load model + source + camera concurrently.
+    state.operationalBootStarted = true;
+    setSystem("loading", "Đang đồng bộ");
+
+    // Only after authorization:
+    // load OCR model + source + camera concurrently.
     const modelPromise =
       loadModel().catch((err) => {
         console.error(err);
@@ -951,7 +1113,8 @@
         throw err;
       });
 
-    const sourcePromise = refreshSource();
+    const sourcePromise =
+      refreshSource();
 
     // Auto camera: zero normal button flow.
     const cameraPromise =
@@ -975,24 +1138,157 @@
       state.cameraReady
     ) {
       setSystem("ready", "Sẵn sàng");
-      setResult("idle", "Sẵn sàng quét", "Đưa BKS vào khung");
+      setResult(
+        "idle",
+        "Sẵn sàng quét",
+        "Đưa BKS vào khung",
+      );
     }
 
-    // Refresh H/F/J without blocking scans.
-    setInterval(() => {
-      void refreshSource();
-    }, CFG.sourceRefreshMs);
+    if (!state.backgroundTimersStarted) {
+      state.backgroundTimersStarted = true;
 
-    // UI source age.
-    setInterval(updateSourceStatus, 1000);
+      // Refresh H/F/J without blocking scans.
+      setInterval(() => {
+        if (state.authReady) {
+          void refreshSource();
+        }
+      }, CFG.sourceRefreshMs);
 
-    // Retry unsent A/B logs.
-    setInterval(() => {
-      void flushLogQueue();
-    }, 4000);
+      // UI source age.
+      setInterval(
+        updateSourceStatus,
+        1000,
+      );
+
+      // Retry unsent logs.
+      setInterval(() => {
+        if (state.authReady) {
+          void flushLogQueue();
+        }
+      }, 4000);
+    }
 
     void flushLogQueue();
   }
+
+  async function boot() {
+    loadPendingLogs();
+
+    if (!backendConfigured()) {
+      setSystem("error", "Chưa nối GSheet");
+      setResult(
+        "error",
+        "CHƯA CẤU HÌNH GSHEET",
+        "Paste Apps Script /exec URL vào config.js",
+      );
+      return;
+    }
+
+    const authorized =
+      await checkAuthorization();
+
+    if (!authorized) {
+      return;
+    }
+
+    await startOperationalBoot();
+  }
+
+  els.authBtn.addEventListener(
+    "click",
+    () => {
+      if (!state.authUrl) {
+        void checkAuthorization();
+        return;
+      }
+
+      els.authBtn.disabled = true;
+      els.authRetryBtn.disabled = true;
+
+      els.authMessage.textContent =
+        "Google đang mở trang cấp quyền. " +
+        "Chọn đúng email Shopee Mobile và bấm Allow. " +
+        "Sau đó quay lại tab Truck Check.";
+
+      // User gesture => browser should allow opening a new tab.
+      window.open(
+        state.authUrl,
+        "_blank",
+      );
+
+      // Re-enable manual retry shortly after opening consent.
+      setTimeout(() => {
+        els.authBtn.disabled = false;
+        els.authRetryBtn.disabled = false;
+      }, 1200);
+    },
+  );
+
+  els.authRetryBtn.addEventListener(
+    "click",
+    async () => {
+      els.authRetryBtn.disabled = true;
+      els.authMessage.textContent =
+        "Đang kiểm tra quyền...";
+
+      await continueAfterAuthorization();
+
+      els.authRetryBtn.disabled = false;
+    },
+  );
+
+  async function autoRecheckAuthorization() {
+    if (
+      !document.body.classList.contains(
+        "auth-required"
+      )
+    ) {
+      return;
+    }
+
+    const now = Date.now();
+
+    if (
+      now -
+      state.lastAuthAutoCheckAt <
+      1200
+    ) {
+      return;
+    }
+
+    state.lastAuthAutoCheckAt = now;
+
+    await continueAfterAuthorization();
+  }
+
+  // User finishes Google consent in another tab,
+  // then returns to Truck Check => auto-check immediately.
+  window.addEventListener(
+    "focus",
+    () => {
+      setTimeout(
+        () => {
+          void autoRecheckAuthorization();
+        },
+        350,
+      );
+    },
+  );
+
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      if (!document.hidden) {
+        setTimeout(
+          () => {
+            void autoRecheckAuthorization();
+          },
+          350,
+        );
+      }
+    },
+  );
 
   els.cameraFallback.addEventListener(
     "click",

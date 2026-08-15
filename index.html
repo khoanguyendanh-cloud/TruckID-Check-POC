@@ -6,13 +6,13 @@
   <meta name="theme-color" content="#020617" />
   <title>Truck ID Check</title>
 
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=31" />
 
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js"></script>
 
   <script src="./config.js"></script>
-  <script defer src="./app.js?v=30"></script>
+  <script defer src="./app.js?v=31"></script>
 </head>
 
 <body>
@@ -28,6 +28,32 @@
         <span id="systemText">Đang khởi động</span>
       </div>
     </header>
+
+    <section id="authGate" class="auth-gate hidden" aria-live="polite">
+      <div class="auth-icon">🔐</div>
+
+      <div class="auth-title">
+        Cấp quyền lần đầu
+      </div>
+
+      <div id="authMessage" class="auth-message">
+        Truck Check cần quyền Google Sheets để tải danh sách xe và lưu lượt quét.
+        Chỉ cần cấp một lần cho tài khoản này.
+      </div>
+
+      <button id="authBtn" class="auth-btn" type="button">
+        Cấp quyền sử dụng
+      </button>
+
+      <button id="authRetryBtn" class="auth-retry-btn" type="button">
+        Tôi đã cấp quyền · Kiểm tra lại
+      </button>
+
+      <div class="auth-hint">
+        Hãy chọn đúng email Shopee Mobile đang dùng để quét.
+        Sau khi bấm Allow, quay lại tab Truck Check — hệ thống sẽ tự kiểm tra.
+      </div>
+    </section>
 
     <section class="scanner">
       <video id="video" autoplay playsinline muted></video>
