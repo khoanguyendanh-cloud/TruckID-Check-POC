@@ -4,7 +4,7 @@ window.TRUCK_CHECK_CONFIG = Object.freeze({
   // Example:
   // https://script.google.com/macros/s/AKfycbxxxxxxxxxxxxxxxx/exec
   // ==========================================================
-  appsScriptUrl: "https://script.google.com/a/macros/spxexpress.com/s/AKfycby_jvA6-axc18D6La2QYvEn_enPnOK_swsL70fcjkcG3RvR-57mr4pPyPuMgsbRpVbM/exec",
+  appsScriptUrl: "https://script.google.com/a/macros/spxexpress.com/s/AKfycbylXiEy1l8gAB3Ym0VGYBtyOxCURXuXn4N7CZGXP3pL6DKVPwNzZy2yEnb6jo87dZdz/exec",
   
   modelLocalUrl: "./models/cct_xs_v2_global.onnx?v=2",
 
