@@ -150,7 +150,7 @@
 
   let jsonpSeq = 0;
 
-  function jsonp(params) {
+  function jsonp(params, timeoutMs = CFG.backendTimeoutMs) {
     return new Promise((resolve, reject) => {
       if (!backendConfigured()) {
         reject(new Error("Chưa cấu hình Apps Script URL."));
@@ -184,7 +184,7 @@
       const timer = setTimeout(() => {
         cleanup();
         reject(new Error("Backend timeout."));
-      }, CFG.backendTimeoutMs);
+      }, timeoutMs);
 
       window[callbackName] = (payload) => {
         cleanup();
@@ -231,10 +231,21 @@
         "và lưu lượt quét. Chỉ cần cấp một lần cho tài khoản này."
       );
 
-    els.authBtn.disabled = !state.authUrl;
+    // Never leave the primary action permanently grey.
+    els.authBtn.disabled = false;
+    els.authBtn.textContent =
+      state.authUrl
+        ? "Cấp quyền sử dụng"
+        : "Thử lại kết nối";
+
     els.authRetryBtn.disabled = false;
 
-    setSystem("error", "Cần cấp quyền");
+    setSystem(
+      "error",
+      state.authUrl
+        ? "Cần cấp quyền"
+        : "Lỗi kết nối quyền",
+    );
   }
 
   function hideAuthGate() {
@@ -242,10 +253,21 @@
     els.authGate.classList.add("hidden");
 
     els.authBtn.disabled = false;
+    els.authBtn.textContent = "Cấp quyền sử dụng";
     els.authRetryBtn.disabled = false;
   }
 
-  async function checkAuthorization() {
+  // ==========================================================
+  // ACCESS CHECK V1.1
+  //
+  // Use the REAL source call as the source of truth:
+  // - source OK => user has enough permission
+  // - authRequired + authUrl => show Google consent button
+  //
+  // This removes the flaky action=auth preflight from page boot.
+  // ==========================================================
+
+  async function checkAccessViaSource() {
     if (!backendConfigured()) {
       state.authReady = false;
       setSystem("error", "Chưa nối GSheet");
@@ -260,76 +282,46 @@
       (async () => {
         setSystem("loading", "Đang kiểm tra quyền");
 
-        try {
-          const payload =
-            await jsonp({
-              action: "auth",
-            });
+        const sourceOk =
+          await refreshSource({
+            onboarding: true,
+          });
 
-          if (payload.authorized) {
-            state.authReady = true;
-            state.authUrl = "";
-
-            hideAuthGate();
-
-            return true;
-          }
-
-          if (
-            payload.authRequired &&
-            payload.authUrl
-          ) {
-            showAuthGate(
-              payload.authUrl,
-              "Tài khoản này chưa cấp quyền cho Truck Check. " +
-              "Bấm “Cấp quyền sử dụng”, chọn đúng email Shopee Mobile " +
-              "và bấm Allow.",
-            );
-
-            return false;
-          }
-
-          throw new Error(
-            "Backend không trả trạng thái cấp quyền hợp lệ.",
-          );
-
-        } catch (err) {
-          console.warn("Auth check:", err);
-
-          const payload = err?.payload;
-
-          if (
-            payload?.authRequired &&
-            payload?.authUrl
-          ) {
-            showAuthGate(
-              payload.authUrl,
-              "Tài khoản này cần cấp quyền trước khi sử dụng Truck Check.",
-            );
-
-            return false;
-          }
-
-          showAuthGate(
-            "",
-            "Không kiểm tra được quyền sử dụng. " +
-            "Kiểm tra kết nối rồi bấm “Kiểm tra lại”.",
-          );
-
-          setSystem("error", "Lỗi kiểm tra quyền");
-          return false;
-
-        } finally {
-          state.authCheckPromise = null;
+        if (sourceOk) {
+          state.authReady = true;
+          state.authUrl = "";
+          hideAuthGate();
+          return true;
         }
-      })();
+
+        // refreshSource() shows Auth Gate itself
+        // when backend returns authRequired + authUrl.
+        if (
+          document.body.classList.contains(
+            "auth-required"
+          )
+        ) {
+          return false;
+        }
+
+        showAuthGate(
+          "",
+          "Chưa kết nối được Apps Script. " +
+          "Bấm “Thử lại kết nối”.",
+        );
+
+        return false;
+      })()
+      .finally(() => {
+        state.authCheckPromise = null;
+      });
 
     return state.authCheckPromise;
   }
 
   async function continueAfterAuthorization() {
     const authorized =
-      await checkAuthorization();
+      await checkAccessViaSource();
 
     if (!authorized) {
       return false;
@@ -339,7 +331,7 @@
     return true;
   }
 
-  async function refreshSource() {
+  async function refreshSource(options = {}) {
     if (!backendConfigured()) {
       state.sourceReady = false;
       updateSourceStatus();
@@ -353,7 +345,13 @@
     }
 
     try {
-      const payload = await jsonp({ action: "source" });
+      const payload =
+        await jsonp(
+          { action: "source" },
+          options.onboarding
+            ? 20000
+            : CFG.backendTimeoutMs,
+        );
 
       const map = new Map();
 
@@ -410,6 +408,17 @@
 
       state.sourceReady = false;
       updateSourceStatus();
+
+      if (options.onboarding) {
+        showAuthGate(
+          "",
+          "Không gọi được backend để kiểm tra quyền. " +
+          "Bấm “Thử lại kết nối”.",
+        );
+
+        return false;
+      }
+
       setSystem("error", "Mất dữ liệu");
       setResult(
         "error",
@@ -1114,7 +1123,9 @@
       });
 
     const sourcePromise =
-      refreshSource();
+      state.sourceReady
+        ? Promise.resolve(true)
+        : refreshSource();
 
     // Auto camera: zero normal button flow.
     const cameraPromise =
@@ -1186,7 +1197,7 @@
     }
 
     const authorized =
-      await checkAuthorization();
+      await checkAccessViaSource();
 
     if (!authorized) {
       return;
@@ -1197,9 +1208,24 @@
 
   els.authBtn.addEventListener(
     "click",
-    () => {
+    async () => {
       if (!state.authUrl) {
-        void checkAuthorization();
+        els.authBtn.disabled = true;
+        els.authBtn.textContent = "Đang thử lại...";
+        els.authMessage.textContent =
+          "Đang kiểm tra lại quyền và kết nối Apps Script...";
+
+        await continueAfterAuthorization();
+
+        els.authBtn.disabled = false;
+
+        if (!state.authReady) {
+          els.authBtn.textContent =
+            state.authUrl
+              ? "Cấp quyền sử dụng"
+              : "Thử lại kết nối";
+        }
+
         return;
       }
 
@@ -1211,13 +1237,11 @@
         "Chọn đúng email Shopee Mobile và bấm Allow. " +
         "Sau đó quay lại tab Truck Check.";
 
-      // User gesture => browser should allow opening a new tab.
       window.open(
         state.authUrl,
         "_blank",
       );
 
-      // Re-enable manual retry shortly after opening consent.
       setTimeout(() => {
         els.authBtn.disabled = false;
         els.authRetryBtn.disabled = false;
