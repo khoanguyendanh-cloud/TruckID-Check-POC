@@ -308,6 +308,18 @@
     );
   }
 
+  // ==========================================================
+  // ACCESS CHECK V1.3
+  //
+  // No preflight ping.
+  //
+  // The only thing Truck Check actually needs before starting is SOURCE:
+  // - source loads => user is authorized and backend works
+  // - source cannot run => show first-party authorization page
+  //
+  // This avoids false "backend disconnected" errors before OAuth.
+  // ==========================================================
+
   async function checkAccessViaSource() {
     if (!backendConfigured()) {
       state.authReady = false;
@@ -323,66 +335,29 @@
       (async () => {
         setSystem("loading", "Đang kiểm tra quyền");
 
-        // Step 1: prove the Apps Script endpoint is reachable.
-        try {
-          await jsonp(
-            { action: "ping" },
-            12000,
-          );
-        } catch (err) {
-          console.warn("Backend ping:", err);
+        const sourceOk =
+          await refreshSource({
+            onboarding: true,
+            suppressGenericAuthGate: true,
+          });
 
-          showAuthGate(
-            "",
-            "Không kết nối được Apps Script backend. " +
-            "Kiểm tra mạng hoặc URL backend rồi bấm “Thử lại kết nối”.",
-          );
+        if (sourceOk) {
+          state.authReady = true;
+          state.authUrl = "";
 
-          return false;
+          hideAuthGate();
+          return true;
         }
 
-        // Step 2: the real permission check is whether source can load.
-        try {
-          const sourceOk =
-            await refreshSource({
-              onboarding: true,
-              suppressGenericAuthGate: true,
-            });
+        // Before first OAuth grant, the cross-site JSONP source request
+        // may not complete normally. Do not call it a backend failure.
+        // Move the user to the first-party Apps Script authorization page.
+        showFirstTimeAuthGate(
+          "Tài khoản này chưa truy cập được Source. " +
+          "Hãy cấp quyền Google Sheets lần đầu để tiếp tục.",
+        );
 
-          if (sourceOk) {
-            state.authReady = true;
-            state.authUrl = "";
-
-            hideAuthGate();
-            return true;
-          }
-
-          // If source explicitly handled authRequired, it may already
-          // have shown a gate. Otherwise use the first-party auth page.
-          if (
-            !document.body.classList.contains(
-              "auth-required"
-            )
-          ) {
-            showFirstTimeAuthGate();
-          }
-
-          return false;
-
-        } catch (err) {
-          console.warn("Source access:", err);
-
-          // Endpoint is reachable but source cannot execute.
-          // Before first OAuth grant this commonly cannot complete
-          // as a JSONP call from GitHub. Move auth into first-party
-          // Apps Script page instead.
-          showFirstTimeAuthGate(
-            "Backend đang hoạt động nhưng tài khoản này chưa truy cập được Source. " +
-            "Hãy cấp quyền Google Sheets lần đầu.",
-          );
-
-          return false;
-        }
+        return false;
       })()
       .finally(() => {
         state.authCheckPromise = null;
@@ -481,9 +456,9 @@
 
       if (options.onboarding) {
         if (!options.suppressGenericAuthGate) {
-          showAuthGate(
-            "",
-            "Không gọi được Source. Bấm “Thử lại kết nối”.",
+          showFirstTimeAuthGate(
+            "Tài khoản này chưa truy cập được Source. " +
+            "Hãy cấp quyền Google Sheets lần đầu.",
           );
         }
 
@@ -1304,7 +1279,7 @@
       els.authRetryBtn.disabled = true;
 
       els.authMessage.textContent =
-        "Đang mở trang cấp quyền của Truck Check. " +
+        "Đang mở trang cấp quyền Google của Truck Check. " +
         "Chọn đúng email Shopee Mobile, bấm Cấp quyền / Allow, " +
         "sau đó quay lại tab Truck Check.";
 
